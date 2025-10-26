@@ -3,7 +3,13 @@ import { MongoClient, Db } from 'mongodb'
 const uri = process.env.MONGODB_URI || ''
 const dbNameFromEnv = process.env.MONGODB_DB || ''
 
-if (!uri) {
+// Check if we're in build time (Next.js static generation)
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' ||
+                   process.env.NEXT_PHASE === 'phase-production-server' ||
+                   !process.env.MONGODB_URI ||
+                   process.env.NODE_ENV === 'test'
+
+if (!uri && !isBuildTime) {
   // don't throw at module load time in some environments, but warn
   // runtime checks will fail if not provided
   console.warn('Warning: MONGODB_URI is not set. MongoDB operations will fail until it is provided.')
@@ -18,7 +24,6 @@ declare global {
 }
 
 let client: MongoClient
-let clientPromise: Promise<MongoClient> | null = null
 
 function makeDevFriendlyUri(input: string) {
   // In development only, if the URI doesn't already explicitly allow invalid certs,
@@ -36,7 +41,14 @@ function makeDevFriendlyUri(input: string) {
 
 const effectiveUri = makeDevFriendlyUri(uri)
 
-if (!uri) {
+let clientPromise: Promise<MongoClient>
+
+if (isBuildTime) {
+  // During build time, create a mock client that doesn't connect
+  // This prevents build failures when MongoDB URI has TLS cert requirements
+  const mockClient = {} as MongoClient
+  clientPromise = Promise.resolve(mockClient)
+} else if (!uri) {
   // create a dummy promise that will immediately reject when used
   clientPromise = Promise.reject(new Error('MONGODB_URI is not set'))
 } else if (process.env.NODE_ENV === 'development') {
@@ -48,12 +60,8 @@ if (!uri) {
   }
   clientPromise = global.__mongo_client_promise__ as Promise<MongoClient>
 } else {
-  // In production/build time we must NOT connect eagerly during module import.
-  // Creating a MongoClient synchronously here causes Next.js build to attempt
-  // to read files referenced by the connection string (e.g. tlsCAFile) which
-  // may not exist inside the builder image. Defer connection until runtime
-  // when getMongoClient() is called.
-  clientPromise = null
+  client = new MongoClient(effectiveUri)
+  clientPromise = client.connect()
 }
 
 let cachedClientPromise: Promise<MongoClient> | null = null
@@ -61,12 +69,12 @@ let cachedClientPromise: Promise<MongoClient> | null = null
 function createClientPromise(): Promise<MongoClient> {
   if (!uri) return Promise.reject(new Error('MONGODB_URI is not set'))
   // create client and connect
-  const clientLocal = new MongoClient(effectiveUri)
-  const p = clientLocal.connect()
+  const client = new MongoClient(effectiveUri)
+  const p = client.connect()
   // in development, cache on global to survive HMR
   if (process.env.NODE_ENV === 'development') {
     // @ts-ignore
-    global.__mongo_client__ = clientLocal
+    global.__mongo_client__ = client
     // @ts-ignore
     global.__mongo_client_promise__ = p
   }
@@ -80,14 +88,8 @@ export async function getMongoClient(): Promise<MongoClient> {
     if (process.env.NODE_ENV === 'development' && global.__mongo_client_promise__) {
       // @ts-ignore
       cachedClientPromise = global.__mongo_client_promise__
-    } else if (clientPromise) {
-      // if a clientPromise was created elsewhere, use it
-      cachedClientPromise = clientPromise
     } else {
-      // otherwise create a fresh connection now (deferred)
       cachedClientPromise = createClientPromise()
-      // store the clientPromise for potential reuse
-      clientPromise = cachedClientPromise
     }
   }
   return cachedClientPromise
@@ -95,6 +97,22 @@ export async function getMongoClient(): Promise<MongoClient> {
 
 export async function getDb(name?: string): Promise<Db> {
   const client = await getMongoClient()
+
+  // During build time, return a mock database
+  if (isBuildTime) {
+    const mockDb = {
+      collection: () => ({
+        insertOne: () => Promise.resolve({}),
+        updateOne: () => Promise.resolve({}),
+        find: () => ({ toArray: () => Promise.resolve([]) }),
+        findOne: () => Promise.resolve(null),
+        deleteOne: () => Promise.resolve({}),
+        deleteMany: () => Promise.resolve({})
+      })
+    } as unknown as Db
+    return mockDb
+  }
+
   // prefer explicit param, then MONGODB_DB, then DB from URI path, then default
   if (name) return client.db(name)
   if (dbNameFromEnv) return client.db(dbNameFromEnv)

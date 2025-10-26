@@ -11,26 +11,45 @@ Key files included
 - `.dockerignore` — excludes local files from build context.
 - `package.json` — `start` script respects `$PORT`.
 
+## IMPORTANT: Build Method Configuration
+
+**CRITICAL**: In Coolify, you MUST select "Dockerfile" as the build method, NOT "Nixpacks" or any other method. The Dockerfile handles the entire build process.
+
 Deployment steps (in Coolify UI)
-1. Create a new app and choose "Dockerfile" as the build method.
-2. Point Coolify to this repository (or upload the project files).
-3. Configure environment variables in Coolify's service settings (do NOT include secrets in the repo):
+1. Create a new app and choose **"Dockerfile"** as the build method.
+2. Point Coolify to this repository: `https://github.com/labhalamanojkumar/JSON.git`
+3. **DO NOT** set any build commands manually - the Dockerfile handles everything.
+4. Configure environment variables in Coolify's service settings (do NOT include secrets in the repo):
    - `MONGODB_URI` — your production MongoDB connection string
-   - `MONGODB_DB` — database name (optional)
-   - `ADMIN_TOKEN` — secure token used for admin cookie
-   - `SUPERADMIN_USER` / `SUPERADMIN_PASS` — for initial login fallback (recommended to use DB users instead)
+   - `MONGODB_DB=jsonformatter` — database name
+   - `ADMIN_TOKEN` — secure token used for admin cookie (generate a random string)
+   - `SUPERADMIN_USER=Superadmin` — admin username
+   - `SUPERADMIN_PASS` — secure password for initial login
    - `NODE_ENV=production`
-4. Set the build command to: `npm ci --legacy-peer-deps && npm run build`
-   (Coolify may run `docker build` which executes the Dockerfile stages automatically.)
-5. Set the start command (if required) to: `npm start` — the Dockerfile already uses this.
-6. Expose port `3000` in the service settings (Coolify typically maps it automatically).
+5. **Port Configuration**: The Dockerfile exposes port 3000, Coolify will map this automatically.
+6. **Health Check**: The app includes a `/api/health` endpoint for monitoring.
 
-Security notes
-- Never commit `.env.local` or secrets to the repo. Use Coolify's environment variable UI to store secrets.
-- For production, prefer DB-backed admin users instead of environment fallback credentials.
+## Troubleshooting Build Issues
 
-Troubleshooting
-- If the app fails during `npm run build`, check `dev-server.log` or the build logs in Coolify for missing environment variables or incompatible Node versions. The Dockerfile uses Node 20.
-- If you see connection refused after deployment, verify the service port, Coolify proxy rules, and that your VPS firewall allows inbound connections on the app port.
+If you see build errors like "exit code: 240":
+- **Ensure** you're using "Dockerfile" build method, not Nixpacks
+- **Remove** any manual build commands from Coolify settings
+- **Verify** all required environment variables are set
+- **Check** Coolify logs for specific error messages
 
-That's it — with the provided Dockerfile and guidance, Coolify can build and run this app as a containerized service.
+## Alternative: Manual Docker Build
+
+If Coolify continues to have issues, you can build and push the image manually:
+
+```bash
+# Build the image
+docker build -t jsonformatterpro .
+
+# Tag for your registry
+docker tag jsonformatterpro your-registry/jsonformatterpro:latest
+
+# Push to registry
+docker push your-registry/jsonformatterpro:latest
+```
+
+Then deploy the pre-built image in Coolify.

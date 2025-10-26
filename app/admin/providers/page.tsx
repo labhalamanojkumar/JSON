@@ -39,9 +39,16 @@ export default function AdminProviders() {
     const res = await fetch('/api/admin/providers', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name, type, config }) })
     const result = await res.json()
     if (result.success) {
-      setProviders((p) => [...p, result.provider])
-      setName('')
-      setConfig({})
+      if (!result.provider) {
+        // Defensive: provider should be returned from the API. If not, alert and skip mutating state.
+        alert('Provider created but server did not return provider data. Refresh providers list.')
+        // refresh providers list
+        fetch('/api/admin/providers').then(r => r.json()).then((d) => setProviders(d.providers || []))
+      } else {
+        setProviders((p) => [...p, result.provider])
+        setName('')
+        setConfig({})
+      }
     } else {
       alert(result.error || 'Failed')
     }
@@ -128,8 +135,8 @@ export default function AdminProviders() {
           </div>
 
           <div className="space-y-4">
-            {providers.map((p) => (
-              <div key={p.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex justify-between items-start">
+            {providers.filter(Boolean).map((p) => (
+              <div key={p?.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex justify-between items-start">
                 <div className="flex-1">
                   <div className="font-semibold text-lg text-gray-800 dark:text-white">{p.name} <span className="text-sm text-gray-500">({p.type})</span></div>
                   <div className="mt-2">

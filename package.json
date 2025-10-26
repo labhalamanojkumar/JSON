@@ -8,6 +8,7 @@
     "dev:stop": "bash scripts/stop-dev.sh",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
+    "migrate:mongo-to-mysql": "node scripts/migrate_mongo_to_mysql.js",
     "lint": "next lint"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "jsonlint-mod": "^1.7.6",
     "monaco-editor": "^0.45.0",
     "mongodb": "^5.8.0",
+    "mysql2": "^3.15.3",
     "next": "^14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

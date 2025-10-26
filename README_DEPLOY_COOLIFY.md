@@ -16,6 +16,17 @@ Important environment variables
 - `DEBUG_MONGO` — set to `1` to enable legacy MongoDB helper logs if you need debugging.
 - Any other envs in `.env.example` should be set in Coolify's environment settings.
 
+Example `MYSQL_URL`
+```
+mysql://<user>:<password>@<host>:<port>/<database>?ssl-mode=REQUIRED
+```
+Set this value securely in Coolify's environment/secret settings (do not commit credentials to the repo).
+
+Secrets and local `.env` files
+--------------------------------
+This repo intentionally ignores local environment files (see `.gitignore` / `.dockerignore`).
+Do not commit `.env.local` or other secret files to the repository. In Coolify, add secrets in the environment settings for the service instead.
+
 Notes and recommendations
 - The Dockerfile uses a non-root user for runtime safety.
 - The image exposes healthcheck that queries `/api/health`. If your app does not implement `/api/health`, either add a lightweight route or remove the HEALTHCHECK line in the Dockerfile.

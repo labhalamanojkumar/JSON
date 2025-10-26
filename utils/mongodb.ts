@@ -18,7 +18,7 @@ declare global {
 }
 
 let client: MongoClient
-let clientPromise: Promise<MongoClient>
+let clientPromise: Promise<MongoClient> | null = null
 
 function makeDevFriendlyUri(input: string) {
   // In development only, if the URI doesn't already explicitly allow invalid certs,
@@ -48,8 +48,12 @@ if (!uri) {
   }
   clientPromise = global.__mongo_client_promise__ as Promise<MongoClient>
 } else {
-  client = new MongoClient(effectiveUri)
-  clientPromise = client.connect()
+  // In production/build time we must NOT connect eagerly during module import.
+  // Creating a MongoClient synchronously here causes Next.js build to attempt
+  // to read files referenced by the connection string (e.g. tlsCAFile) which
+  // may not exist inside the builder image. Defer connection until runtime
+  // when getMongoClient() is called.
+  clientPromise = null
 }
 
 let cachedClientPromise: Promise<MongoClient> | null = null
@@ -57,12 +61,12 @@ let cachedClientPromise: Promise<MongoClient> | null = null
 function createClientPromise(): Promise<MongoClient> {
   if (!uri) return Promise.reject(new Error('MONGODB_URI is not set'))
   // create client and connect
-  const client = new MongoClient(effectiveUri)
-  const p = client.connect()
+  const clientLocal = new MongoClient(effectiveUri)
+  const p = clientLocal.connect()
   // in development, cache on global to survive HMR
   if (process.env.NODE_ENV === 'development') {
     // @ts-ignore
-    global.__mongo_client__ = client
+    global.__mongo_client__ = clientLocal
     // @ts-ignore
     global.__mongo_client_promise__ = p
   }
@@ -76,8 +80,14 @@ export async function getMongoClient(): Promise<MongoClient> {
     if (process.env.NODE_ENV === 'development' && global.__mongo_client_promise__) {
       // @ts-ignore
       cachedClientPromise = global.__mongo_client_promise__
+    } else if (clientPromise) {
+      // if a clientPromise was created elsewhere, use it
+      cachedClientPromise = clientPromise
     } else {
+      // otherwise create a fresh connection now (deferred)
       cachedClientPromise = createClientPromise()
+      // store the clientPromise for potential reuse
+      clientPromise = cachedClientPromise
     }
   }
   return cachedClientPromise

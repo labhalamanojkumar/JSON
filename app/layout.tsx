@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import AdInjector from '@/components/AdInjector'
+import { getDb } from '@/utils/mongodb'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://jsonformatter.pro'),
@@ -67,16 +68,25 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // try to read monetag provider from DB (first enabled provider with metaname)
+  let monetagMeta: string | null = null
+  try {
+    const db = await getDb()
+    if (db) {
+      const col = db.collection('ad_providers')
+      const p = await col.findOne({ type: 'monetag', $or: [{ 'config.enabled': true }, { 'config.metaname': { $exists: true } }] })
+      if (p && p.config && p.config.metaname) monetagMeta = p.config.metaname
+    }
+  } catch (e) {
+    // ignore DB errors at render time; fallback to no meta
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" />
-        <meta name="monetag" content="a3ba1c9ee279414a909e456501d57989" />
+        {monetagMeta ? <meta name="monetag" content={monetagMeta} /> : null}
         <link rel="canonical" href="https://jsonformatter.pro" />
       </head>
       <body className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">

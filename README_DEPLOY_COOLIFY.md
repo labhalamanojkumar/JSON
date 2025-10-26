@@ -65,7 +65,8 @@ Deployment steps (in Coolify UI)
    - `SUPERADMIN_PASS` — secure password for initial login
    - `NODE_ENV=production`
 5. **Port Configuration**: The Dockerfile exposes port 3000, Coolify will map this automatically.
-6. **Health Check**: The app includes a `/api/health` endpoint for monitoring.
+6. **Health Check**: ## Health Check
+The app includes a `/api/health` endpoint that checks MySQL connectivity. The Dockerfile healthcheck probes this endpoint every 30 seconds. If the database is unreachable, the health check will fail (status 503), marking the container unhealthy in Coolify.
 
 ## Troubleshooting Build Issues
 

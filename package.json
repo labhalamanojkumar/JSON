@@ -4,6 +4,8 @@
   "description": "Professional JSON Formatter, Validator, and Converter Tool",
   "scripts": {
     "dev": "next dev",
+    "dev:daemon": "bash scripts/start-dev.sh",
+    "dev:stop": "bash scripts/stop-dev.sh",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
     "lint": "next lint"

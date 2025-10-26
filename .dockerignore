@@ -1,0 +1,13 @@
+node_modules
+.next
+dev-server.log
+npm-debug.log
+.env.local
+.env.local.bak
+.vscode/
+dist
+coverage
+logs
+.DS_Store
+*.tgz
+**/__tests__

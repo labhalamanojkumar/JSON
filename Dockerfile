@@ -34,6 +34,10 @@ COPY --from=builder /app/next.config.js ./next.config.js
 # Create non-root user and set permissions for /app
 RUN groupadd -r app && useradd -r -g app app || true
 RUN chown -R app:app /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 USER app
 
 EXPOSE ${PORT}

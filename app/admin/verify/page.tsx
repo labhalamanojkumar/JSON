@@ -7,25 +7,21 @@ export default function AdminVerify() {
   const [url, setUrl] = useState('')
   const [tag, setTag] = useState('')
   const [result, setResult] = useState<any>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      return typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null
+    } catch (e) {
+      return null
+    }
+  })
+  const [loading, setLoading] = useState(() => (token ? false : true))
   const router = useRouter()
 
   useEffect(() => {
-    // Check authentication and redirect if not logged in
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null
-      if (!saved) {
-        router.push('/admin')
-        return
-      }
-      setToken(saved)
-    } catch (e) {
+    if (!token) {
       router.push('/admin')
-      return
     }
-    setLoading(false)
-  }, [router])
+  }, [router, token])
 
   const verify = async () => {
     if (!token) return alert('No admin token')

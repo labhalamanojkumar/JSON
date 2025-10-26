@@ -1,48 +1,47 @@
-## Multi-stage Dockerfile for Next.js production build
-## Builds the app and runs it with `next start`.
+## Multi-stage Dockerfile for deploying Next.js app to Coolify (VPS)
 
-FROM node:20 AS builder
+# Builder: install deps and build the app
+FROM node:20-slim AS builder
 WORKDIR /app
 
-# Install dependencies (including dev for build)
+# Install build-time dependencies
 COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
+RUN npm ci --silent
 
 # Copy source and build
 COPY . .
 RUN npm run build
 
+# Runner: smaller image that only contains production artifacts
 FROM node:20-slim AS runner
 WORKDIR /app
-ENV NODE_ENV=production
 
-# Copy only the necessary artifacts
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Copy only the production artifacts from builder
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package-lock.json ./package-lock.json
 
-# Install production dependencies
+# Install production dependencies only
 RUN if [ -f package-lock.json ]; then \
-    npm ci --omit=dev --legacy-peer-deps; \
-  else \
-    npm install --omit=dev --legacy-peer-deps; \
-  fi
+		npm ci --omit=dev --silent; \
+	else \
+		npm install --omit=dev --silent; \
+	fi
 
-EXPOSE 3000
-
-## Install minimal utilities (curl for healthcheck) and ensure proper permissions
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends curl ca-certificates \
-	&& rm -rf /var/lib/apt/lists/*
-
-## Create non-root user for runtime and ensure /app is writable
-RUN addgroup --system app \
-	&& adduser --system --ingroup app app || true \
-	&& chown -R app:app /app
-
+# Create non-root user and set permissions for /app
+RUN groupadd -r app && useradd -r -g app app || true
+RUN chown -R app:app /app
 USER app
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-	CMD curl -fsS --retry 2 http://localhost:3000/api/health || exit 1
+EXPOSE ${PORT}
 
+# Minimal healthcheck endpoint (optional, Coolify will probe the container's port)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+	CMD curl -fsS --retry 2 http://localhost:${PORT}/api/health || exit 1
+
+# Start the app using the start script which binds to $PORT
 CMD ["npm", "start"]

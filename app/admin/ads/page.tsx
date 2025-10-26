@@ -12,6 +12,8 @@ export default function AdminAds() {
   const [newName, setNewName] = useState('')
   const [newProvider, setNewProvider] = useState('')
   const [newSelector, setNewSelector] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -39,22 +41,32 @@ export default function AdminAds() {
   const createPlacement = async () => {
     if (!token) return alert('No admin token')
     if (!newName || !newProvider) return alert('Missing fields')
-    const res = await fetch('/api/admin/placements', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newName, providerId: newProvider, selector: newSelector, enabled: true }) })
-    const r = await res.json()
-    if (r.success) {
-      setPlacements((p) => [...p, r.placement])
-      setNewName('')
-      setNewSelector('')
-    } else alert(r.error || 'Failed')
+    setCreating(true)
+    try {
+      const res = await fetch('/api/admin/placements', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name: newName, providerId: newProvider, selector: newSelector, enabled: true }) })
+      const r = await res.json()
+      if (r.success) {
+        setPlacements((p) => [...p, r.placement])
+        setNewName('')
+        setNewSelector('')
+      } else alert(r.error || 'Failed')
+    } finally {
+      setCreating(false)
+    }
   }
 
   const deletePlacement = async (id: string) => {
     if (!token) return alert('No admin token')
     if (!confirm('Delete placement?')) return
-    const res = await fetch(`/api/admin/placements?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-    const r = await res.json()
-    if (r.success) setPlacements((list) => list.filter(x => x._id !== id))
-    else alert(r.error || 'Delete failed')
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/admin/placements?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      const r = await res.json()
+      if (r.success) setPlacements((list) => list.filter(x => x._id !== id))
+      else alert(r.error || 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -76,16 +88,16 @@ export default function AdminAds() {
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Placement name" className="border border-gray-300 dark:border-gray-600 p-3 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
               <select value={newProvider} onChange={(e) => setNewProvider(e.target.value)} className="border border-gray-300 dark:border-gray-600 p-3 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                 <option value="">Select provider</option>
-                {providers.map(p => <option key={p.id} value={p.id}>{p.name} ({p.type})</option>)}
+                {providers.map(p => <option key={p._id} value={p._id}>{p.name} ({p.type})</option>)}
               </select>
               <input value={newSelector} onChange={(e) => setNewSelector(e.target.value)} placeholder="selector or page" className="border border-gray-300 dark:border-gray-600 p-3 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-              <button onClick={createPlacement} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">Create</button>
+              <button onClick={createPlacement} disabled={creating} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">{creating ? 'Creating...' : 'Create'}</button>
             </div>
           </div>
 
           <div className="space-y-4">
             {placements.map((pl) => {
-              const provider = providers.find(p => p.id === pl.providerId)
+              const provider = providers.find(p => p._id === pl.providerId)
               return (
                 <div key={pl._id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                   <div className="flex justify-between items-start mb-4">

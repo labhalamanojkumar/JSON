@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getDb } from '@/utils/mongodb'
+import { getDb } from '@/utils/db'
 import bcrypt from 'bcryptjs'
 
 export async function POST(req: Request) {

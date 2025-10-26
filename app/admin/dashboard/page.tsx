@@ -6,25 +6,23 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, 
 
 export default function AdminDashboard() {
   const [summary, setSummary] = useState<any>(null)
-  const [token, setToken] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [token, setToken] = useState<string | null>(() => {
+    try {
+      return typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null
+    } catch (e) {
+      return null
+    }
+  })
+  const [loading, setLoading] = useState(() => (token ? false : true))
+  const [activeProviders, setActiveProviders] = useState<number>(0)
+  const [activePlacements, setActivePlacements] = useState<number>(0)
   const router = useRouter()
 
   useEffect(() => {
-    // Check authentication and redirect if not logged in
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null
-      if (!saved) {
-        router.push('/admin')
-        return
-      }
-      setToken(saved)
-    } catch (e) {
+    if (!token) {
       router.push('/admin')
-      return
     }
-    setLoading(false)
-  }, [router])
+  }, [router, token])
 
   useEffect(() => {
     if (!token) return
@@ -32,6 +30,28 @@ export default function AdminDashboard() {
       .then((r) => r.json())
       .then((data) => setSummary(data.summary))
       .catch(() => setSummary(null))
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/admin/providers', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const active = (data.providers || []).filter((p: any) => p.config?.enabled !== false).length
+        setActiveProviders(active)
+      })
+      .catch(() => setActiveProviders(0))
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    fetch('/api/admin/placements', { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        const active = (data.placements || []).filter((p: any) => p.enabled !== false).length
+        setActivePlacements(active)
+      })
+      .catch(() => setActivePlacements(0))
   }, [token])
 
   // Prepare data for charts
@@ -68,11 +88,11 @@ export default function AdminDashboard() {
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">Active Providers</h3>
-                <p className="text-3xl font-bold text-green-600">—</p> {/* TODO: Fetch provider count */}
+                <p className="text-3xl font-bold text-green-600">{activeProviders}</p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">Active Placements</h3>
-                <p className="text-3xl font-bold text-purple-600">—</p> {/* TODO: Fetch placement count */}
+                <p className="text-3xl font-bold text-purple-600">{activePlacements}</p>
               </div>
             </div>
 
@@ -81,7 +101,7 @@ export default function AdminDashboard() {
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Event Counters</h3>
                 {counterData.length > 0 ? (
-                  <BarChart width={400} height={300} data={counterData}>
+                  <BarChart width={400} height={300} data={counterData} onClick={(data) => { if (data && data.activeLabel) router.push(`/admin/analytics?eventType=${encodeURIComponent(data.activeLabel)}`) }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -125,7 +145,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {(summary?.lastEvents || []).map((e: any, i: number) => (
-                      <tr key={i}>
+                      <tr key={i} className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600" onClick={() => router.push(`/admin/analytics?eventType=${encodeURIComponent(e.eventType)}`)}>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{new Date(e.ts).toLocaleString()}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{e.eventType}</td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{e.label || '—'}</td>

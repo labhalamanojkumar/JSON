@@ -12,18 +12,29 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light')
-  const [mounted, setMounted] = useState(false)
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const savedTheme = localStorage.getItem('theme') as Theme | null
+        if (savedTheme) return savedTheme
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        return prefersDark ? 'dark' : 'light'
+      }
+    } catch (e) {
+      // ignore
+    }
+    return 'light'
+  })
+
+  // Whether we're running in the browser (avoid SSR-only operations)
+  const [mounted] = useState(() => typeof window !== 'undefined')
 
   useEffect(() => {
-    setMounted(true)
-    const savedTheme = localStorage.getItem('theme') as Theme | null
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light')
-    setTheme(initialTheme)
-    document.documentElement.classList.toggle('dark', initialTheme === 'dark')
-  }, [])
+    // Ensure the document class reflects the current theme
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', theme === 'dark')
+    }
+  }, [theme])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'

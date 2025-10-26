@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdminAuth } from '@/utils/adminAuth'
-import { getDb } from '@/utils/mongodb'
+import { getDb } from '@/utils/db'
 
 export async function GET(req: Request) {
   try {
@@ -37,8 +37,8 @@ export async function PUT(req: Request) {
     const { id, name, providerId, selector, enabled } = body
     if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 })
     const db = await getDb()
-    await db.collection('ad_placements').updateOne({ _id: new (require('mongodb').ObjectId)(id) }, { $set: { name, providerId, selector: selector || null, enabled: !!enabled, updatedAt: new Date().toISOString() } })
-  const updated = await db.collection('ad_placements').findOne({ _id: new (require('mongodb').ObjectId)(id) })
+    await db.collection('ad_placements').updateOne({ _id: id }, { $set: { name, providerId, selector: selector || null, enabled: !!enabled, updatedAt: new Date().toISOString() } })
+  const updated = await db.collection('ad_placements').findOne({ _id: id })
   if (!updated) return NextResponse.json({ success: false, error: 'Not found after update' }, { status: 404 })
   return NextResponse.json({ success: true, placement: { ...updated, _id: String(updated._id) } })
   } catch (e: any) {
@@ -54,7 +54,7 @@ export async function DELETE(req: Request) {
     const id = url.searchParams.get('id')
     if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 })
     const db = await getDb()
-    await db.collection('ad_placements').deleteOne({ _id: new (require('mongodb').ObjectId)(id) })
+    await db.collection('ad_placements').deleteOne({ _id: id })
     return NextResponse.json({ success: true })
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Delete failed' }, { status: 500 })

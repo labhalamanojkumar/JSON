@@ -1,3 +1,30 @@
+# Deploying JSON Formatter to Coolify (VPS)
+
+This repo is prepared to run on Coolify (self-hosted PaaS) using Docker. The repository includes a multi-stage `Dockerfile` that builds the Next.js app and runs it in production.
+
+Steps to deploy:
+
+1. In Coolify, create a new app and connect your repository (GitHub/GitLab or direct Git URL).
+2. Use the Docker deployment method and point it at the project root where the `Dockerfile` lives.
+3. Configure environment variables (see below).
+4. Build (Coolify will run `npm ci` in the builder stage and `npm run build`). The runtime command uses `npm start` which binds to `$PORT`.
+
+Important environment variables
+- `PORT` (optional) — port used by the container (default 3000).
+- `MYSQL_URL` or `DATABASE_URL` — MySQL connection string used at runtime.
+- `ADMIN_TOKEN` / `GENERATE_ADMIN_TOKEN` — admin auth token variables as used by the app.
+- `DEBUG_MONGO` — set to `1` to enable legacy MongoDB helper logs if you need debugging.
+- Any other envs in `.env.example` should be set in Coolify's environment settings.
+
+Notes and recommendations
+- The Dockerfile uses a non-root user for runtime safety.
+- The image exposes healthcheck that queries `/api/health`. If your app does not implement `/api/health`, either add a lightweight route or remove the HEALTHCHECK line in the Dockerfile.
+- Coolify lets you map ports and set secrets — add database credentials there.
+- If you prefer automatic static export (no Node server), you can adapt the Dockerfile to run `next export` and serve the `out` directory with a static server; however, server features and API routes require the Node server.
+
+Troubleshooting
+- If builds fail due to peer-dependency issues, ensure your package-lock.json is up to date locally and push it, or let Coolify use `npm install` by removing package-lock from the build context.
+- For runtime errors involving DB connections, check the environment variables and MySQL connectivity (Coolify allows defining network/private IPs if hosting DB separately).
 How to deploy JSONFormatterPro to Coolify (VPS)
 
 This guide explains the minimal steps to containerize and deploy this Next.js app to Coolify.

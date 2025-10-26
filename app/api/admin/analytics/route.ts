@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdminAuth } from '@/utils/adminAuth'
-import { getDb } from '@/utils/mongodb'
+import { getDb } from '@/utils/db'
 
 export async function GET(req: Request) {
   const anyReq: any = req

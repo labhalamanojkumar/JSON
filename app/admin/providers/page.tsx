@@ -10,6 +10,10 @@ export default function AdminProviders() {
   const [config, setConfig] = useState<any>({})
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -36,39 +40,90 @@ export default function AdminProviders() {
   const addProvider = async () => {
     if (!token) return alert('No admin token')
     if (!name || !type) return alert('Missing fields')
-    const res = await fetch('/api/admin/providers', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name, type, config }) })
-    const result = await res.json()
-    if (result.success) {
-      if (!result.provider) {
-        // Defensive: provider should be returned from the API. If not, alert and skip mutating state.
-        alert('Provider created but server did not return provider data. Refresh providers list.')
-        // refresh providers list
-        fetch('/api/admin/providers').then(r => r.json()).then((d) => setProviders(d.providers || []))
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/providers', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ name, type, config }) })
+      const result = await res.json()
+      if (result.success) {
+        if (!result.provider) {
+          // Defensive: provider should be returned from the API. If not, alert and skip mutating state.
+          alert('Provider created but server did not return provider data. Refresh providers list.')
+          // refresh providers list
+          fetch('/api/admin/providers').then(r => r.json()).then((d) => setProviders(d.providers || []))
+        } else {
+          setProviders((p) => [...p, result.provider])
+          setName('')
+          setConfig({})
+        }
       } else {
-        setProviders((p) => [...p, result.provider])
+        alert(result.error || 'Failed')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updateProvider = async () => {
+    if (!token) return alert('No admin token')
+    if (!name || !type || !editingId) return alert('Missing fields')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/admin/providers', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: editingId, name, type, config }) })
+      const result = await res.json()
+      if (result.success) {
+        setProviders((p) => p.map(it => it._id === editingId ? result.provider : it))
         setName('')
         setConfig({})
+        setEditingId(null)
+        setType('adsense')
+      } else {
+        alert(result.error || 'Failed')
       }
-    } else {
-      alert(result.error || 'Failed')
+    } finally {
+      setSaving(false)
     }
+  }
+
+  const editProvider = (p: any) => {
+    setEditingId(p._id)
+    setName(p.name)
+    setType(p.type)
+    setConfig(p.config || {})
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setName('')
+    setType('adsense')
+    setConfig({})
   }
 
   const removeProvider = async (id: string) => {
     if (!token) return alert('No admin token')
     if (!confirm('Delete provider?')) return
-    const res = await fetch(`/api/admin/providers?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
-    const r = await res.json()
-    if (r.success) setProviders((p) => p.filter(x => x.id !== id))
-    else alert(r.error || 'Delete failed')
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/admin/providers?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+      const r = await res.json()
+      if (r.success) setProviders((p) => p.filter(x => x._id !== id))
+      else alert(r.error || 'Delete failed')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const toggleEnabled = async (p: any) => {
     if (!token) return alert('No admin token')
-    const res = await fetch('/api/admin/providers', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: p.id, config: { ...p.config, enabled: !p.config?.enabled }, name: p.name, type: p.type }) })
-    const r = await res.json()
-    if (r.success) setProviders((list) => list.map(it => it.id === p.id ? r.provider : it))
-    else alert(r.error || 'Toggle failed')
+    const newEnabled = !(p.config?.enabled ?? true)
+    setTogglingId(p._id)
+    try {
+      const res = await fetch('/api/admin/providers', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ id: p._id, config: { ...p.config, enabled: newEnabled }, name: p.name, type: p.type }) })
+      const r = await res.json()
+      if (r.success) setProviders((list) => list.map(it => it._id === p._id ? r.provider : it))
+      else alert(r.error || 'Toggle failed')
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   const renderConfigFields = () => {
@@ -131,12 +186,13 @@ export default function AdminProviders() {
               </select>
             </div>
             {renderConfigFields()}
-            <button onClick={addProvider} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">Add Provider</button>
+            <button onClick={editingId ? updateProvider : addProvider} disabled={saving} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">{saving ? 'Saving...' : (editingId ? 'Update Provider' : 'Add Provider')}</button>
+            {editingId && <button onClick={cancelEdit} disabled={saving} className="ml-4 px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">Cancel</button>}
           </div>
 
           <div className="space-y-4">
             {providers.filter(Boolean).map((p) => (
-              <div key={p?.id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex justify-between items-start">
+              <div key={p?._id} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex justify-between items-start">
                 <div className="flex-1">
                   <div className="font-semibold text-lg text-gray-800 dark:text-white">{p.name} <span className="text-sm text-gray-500">({p.type})</span></div>
                   <div className="mt-2">
@@ -160,8 +216,9 @@ export default function AdminProviders() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <button onClick={() => toggleEnabled(p)} className={`px-3 py-1 rounded text-sm font-medium transition-colors ${p.config?.enabled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400 hover:bg-gray-500 text-white'}`}>{p.config?.enabled ? 'Enabled' : 'Disabled'}</button>
-                  <button onClick={() => removeProvider(p.id)} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition-colors">Delete</button>
+                  <button onClick={() => editProvider(p)} disabled={saving || deletingId === p._id} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50">Edit</button>
+                  <button onClick={() => toggleEnabled(p)} disabled={togglingId === p._id} className={`px-3 py-1 rounded text-sm font-medium transition-colors disabled:opacity-50 ${(p.config?.enabled ?? true) ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400 hover:bg-gray-500 text-white'}`}>{togglingId === p._id ? '...' : ((p.config?.enabled ?? true) ? 'Enabled' : 'Disabled')}</button>
+                  <button onClick={() => removeProvider(p._id)} disabled={deletingId === p._id} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50">{deletingId === p._id ? 'Deleting...' : 'Delete'}</button>
                 </div>
               </div>
             ))}

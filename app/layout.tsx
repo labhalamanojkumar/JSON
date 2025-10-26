@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { ThemeProvider } from '@/components/ThemeProvider'
+import ThemeProviderClient from '@/components/ThemeProviderClient'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import AdInjector from '@/components/AdInjector'
-import { getDb } from '@/utils/mongodb'
+import { getDb } from '@/utils/db'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://jsonformatter.pro'),
@@ -75,8 +75,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     const db = await getDb()
     if (db) {
       const col = db.collection('ad_providers')
-      const p = await col.findOne({ type: 'monetag', $or: [{ 'config.enabled': true }, { 'config.metaname': { $exists: true } }] })
-      if (p && p.config && p.config.metaname) monetagMeta = p.config.metaname
+      const providers = await col.find({ type: 'monetag' }).toArray()
+      const p = providers.find(pr => pr.config && (pr.config.enabled || pr.config.metaname))
+      if (p && p.config && p.config.metaname && typeof p.config.metaname === 'string') monetagMeta = p.config.metaname
     }
   } catch (e) {
     // ignore DB errors at render time; fallback to no meta
@@ -90,7 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="canonical" href="https://jsonformatter.pro" />
       </head>
       <body className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-        <ThemeProvider>
+        <ThemeProviderClient>
           <div className="flex flex-col min-h-screen">
             <Header />
             {/* header and top-of-main ad slots */}
@@ -105,7 +106,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
             <Footer />
           </div>
-        </ThemeProvider>
+  </ThemeProviderClient>
       </body>
     </html>
   )

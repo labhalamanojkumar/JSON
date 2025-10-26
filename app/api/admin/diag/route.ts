@@ -1,22 +1,14 @@
-import { MongoClient } from 'mongodb'
 import net from 'net'
+import { getMysqlConnection } from '@/utils/mysql'
 
-function parseHostsFromMongoUri(uri: string): Array<{ host: string; port: number }> {
-  // Very small, forgiving parser: extract the authority section after the '@' and
-  // split on commas. Works for URIs like: mongodb://user:pass@host:1422,host2:1423/...
-  const result: Array<{ host: string; port: number }> = []
-  if (!uri) return result
-
-  const afterAt = uri.match(/@([^/?]+)/)
-  if (!afterAt) return result
-
-  const hostsRaw = afterAt[1]
-  for (const part of hostsRaw.split(',')) {
-    const [hostPart] = part.split('/')
-    const [host, port] = hostPart.split(':')
-    result.push({ host, port: port ? parseInt(port, 10) : 27017 })
+function parseMysqlHostFromUrl(url: string): { host: string | null; port: number | null } {
+  if (!url) return { host: null, port: null }
+  try {
+    const u = new URL(url)
+    return { host: u.hostname || null, port: u.port ? parseInt(u.port, 10) : 3306 }
+  } catch (e) {
+    return { host: null, port: null }
   }
-  return result
 }
 
 async function checkTcp(host: string, port: number, timeout = 3000): Promise<{ ok: boolean; error?: string }>{
@@ -37,47 +29,43 @@ async function checkTcp(host: string, port: number, timeout = 3000): Promise<{ o
 }
 
 export async function GET() {
-  const uri = process.env.MONGODB_URI || ''
-  const hosts = parseHostsFromMongoUri(uri)
+  // Prefer MySQL connectivity checks now that the app uses MySQL for admin data
+  const mysqlUrl = process.env.MYSQL_URL || process.env.MYSQL_URI || process.env.DATABASE_URL || ''
+  const hostInfo = parseMysqlHostFromUrl(mysqlUrl)
 
-  const hostChecks = await Promise.all(
-    hosts.map(async (h) => {
-      try {
-        const r = await checkTcp(h.host, h.port, 3000)
-        return { host: h.host, port: h.port, reachable: r.ok, error: r.error || null }
-      } catch (e) {
-        return { host: h.host, port: h.port, reachable: false, error: String(e) }
-      }
-    })
-  )
-
-  // Attempt a short Mongo connection for an additional check (non-fatal)
-  let mongoAttempt: { ok: boolean; message?: string } = { ok: false }
-  if (uri) {
-    const client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000, connectTimeoutMS: 3000 })
+  const hostChecks = []
+  if (hostInfo.host && hostInfo.port) {
     try {
-      await client.connect()
-      // ping
-      await client.db(process.env.MONGODB_DB || 'admin').command({ ping: 1 })
-      mongoAttempt = { ok: true, message: 'connected and ping successful' }
+      const r = await checkTcp(hostInfo.host, hostInfo.port, 3000)
+      hostChecks.push({ host: hostInfo.host, port: hostInfo.port, reachable: r.ok, error: r.error || null })
+    } catch (e) {
+      hostChecks.push({ host: hostInfo.host, port: hostInfo.port, reachable: false, error: String(e) })
+    }
+  }
+
+  // Attempt a short MySQL connection for an additional check (non-fatal)
+  let mysqlAttempt: { ok: boolean; message?: string } = { ok: false }
+  if (mysqlUrl) {
+    try {
+      const conn = await getMysqlConnection()
+      // simple ping/query
+      const [rows] = await (conn as any).query('SELECT 1')
+      mysqlAttempt = { ok: true, message: 'connected and query successful' }
     } catch (err: any) {
-      mongoAttempt = { ok: false, message: err?.message || String(err) }
-    } finally {
-      try { await client.close() } catch (_) {}
+      mysqlAttempt = { ok: false, message: err?.message || String(err) }
     }
   } else {
-    mongoAttempt = { ok: false, message: 'MONGODB_URI not set' }
+    mysqlAttempt = { ok: false, message: 'MYSQL_URL not set' }
   }
 
   const payload = {
     env: {
-      mongodbUriPresent: Boolean(process.env.MONGODB_URI),
-      mongodbDb: process.env.MONGODB_DB || null,
+      mysqlUrlPresent: Boolean(mysqlUrl),
       adminTokenPresent: Boolean(process.env.ADMIN_TOKEN),
       generateAdminTokenOptIn: process.env.GENERATE_ADMIN_TOKEN === '1'
     },
     hosts: hostChecks,
-    mongoAttempt,
+    mysqlAttempt,
     timestamp: new Date().toISOString()
   }
 

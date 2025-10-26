@@ -17,7 +17,13 @@ interface ValidationError {
 }
 
 export default function JsonFormatter() {
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(() => {
+    try {
+      return typeof window !== 'undefined' ? (localStorage.getItem('json-formatter-input') || '') : ''
+    } catch (e) {
+      return ''
+    }
+  })
   const [output, setOutput] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('code')
   const [indentSize, setIndentSize] = useState<IndentSize>(2)
@@ -26,13 +32,7 @@ export default function JsonFormatter() {
   const [copied, setCopied] = useState(false)
   const [compareInput, setCompareInput] = useState('')
 
-  // Load saved JSON from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('json-formatter-input')
-    if (saved) {
-      setInput(saved)
-    }
-  }, [])
+  // initial value loaded via lazy initializer; no mount-time setState required
 
   // Auto-save to localStorage
   useEffect(() => {

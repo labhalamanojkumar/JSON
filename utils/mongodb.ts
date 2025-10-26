@@ -1,4 +1,6 @@
 import { MongoClient, Db } from 'mongodb'
+import fs from 'fs'
+import path from 'path'
 
 const rawUri = process.env.MONGODB_URI || ''
 const dbNameFromEnv = process.env.MONGODB_DB || ''
@@ -8,15 +10,24 @@ const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' ||
   process.env.NEXT_PHASE === 'phase-production-server' ||
   process.env.NODE_ENV === 'test'
 
+// Only emit Mongo-related logs when explicitly enabled (avoid noisy prints if the app
+// has migrated to MySQL). Enable with DEBUG_MONGO=1 in env when debugging legacy Mongo.
+const mongoLogEnabled = String(process.env.DEBUG_MONGO || '') === '1'
+function mlog(level: 'info' | 'warn' | 'error', ...args: any[]) {
+  if (!mongoLogEnabled) return
+  // @ts-ignore
+  console[level](...args)
+}
+
 if (!rawUri && !isBuildTime) {
-  console.warn('Warning: MONGODB_URI is not set. MongoDB operations will fail until it is provided.')
+  mlog('warn', 'Warning: MONGODB_URI is not set. MongoDB operations will fail until it is provided.')
 }
 
 declare global {
   // allow global caching across module reloads in development
-  // eslint-disable-next-line no-var
+   
   var __mongo_client__ : MongoClient | undefined
-  // eslint-disable-next-line no-var
+   
   var __mongo_client_promise__ : Promise<MongoClient | null> | undefined
 }
 
@@ -59,18 +70,46 @@ async function connectWithRetries(uri: string): Promise<MongoClient | null> {
   const delay = parseInt(process.env.MONGO_RETRY_DELAY_MS || '2000', 10)
 
   for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const client = new MongoClient(uri)
+  try {
+      // Build options for MongoClient. Support mounting a CA file into the container
+      // and passing it to the driver via tlsCA (preferred) so self-signed CA can be trusted.
+      const options: any = {}
+
+      const allowInvalid = String(process.env.MONGO_TLS_ALLOW_INVALID || process.env.MONGO_ALLOW_INVALID_TLS || '').toLowerCase() === 'true'
+      if (allowInvalid) {
+        options.tlsAllowInvalidCertificates = true
+      }
+
+      // server selection timeout (ms)
+      const serverSelectionTimeout = parseInt(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS || process.env.MONGO_SERVER_SELECTION_TIMEOUT || '0', 10)
+      if (serverSelectionTimeout > 0) {
+        options.serverSelectionTimeoutMS = serverSelectionTimeout
+      }
+
+      // Support a mounted CA file via env var MONGO_TLS_CA_FILE or MONGODB_TLS_CA_FILE.
+      const caPath = process.env.MONGO_TLS_CA_FILE || process.env.MONGODB_TLS_CA_FILE || ''
+      if (caPath) {
+        try {
+          const resolved = path.isAbsolute(caPath) ? caPath : path.join(process.cwd(), caPath)
+          const pem = fs.readFileSync(resolved, { encoding: 'utf8' })
+          // MongoClient accepts tlsCA as array of PEM strings or Buffer
+          options.tlsCA = [pem]
+          options.tls = true
+        } catch (err) {
+          mlog('warn', '[mongodb] failed to read CA file at', caPath, err)
+        }
+      }
+
+      const client = new MongoClient(uri, options)
       await client.connect()
-      console.info(`MongoDB: connected (attempt ${attempt})`)
+      mlog('info', `MongoDB: connected (attempt ${attempt})`)
       return client
     } catch (err: any) {
-      console.warn(`MongoDB: connect attempt ${attempt} failed: ${err && err.message ? err.message : err}`)
+      mlog('warn', `MongoDB: connect attempt ${attempt} failed: ${err && err.message ? err.message : err}`)
       if (attempt < retries) await wait(delay)
     }
   }
-
-  console.error('MongoDB: all connection attempts failed')
+  mlog('error', 'MongoDB: all connection attempts failed')
   return null
 }
 

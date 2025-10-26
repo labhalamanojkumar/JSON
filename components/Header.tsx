@@ -48,11 +48,15 @@ export default function Header() {
             className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
             aria-label="Toggle theme"
           >
-            {theme === 'light' ? (
-              <FiMoon className="text-xl text-gray-800" />
-            ) : (
-              <FiSun className="text-xl text-yellow-400" />
-            )}
+            {/*
+              Render both icons always to avoid hydration mismatches.
+              Visibility is controlled with Tailwind's `dark:` utilities so
+              the DOM structure is identical on server and client.
+            */}
+            <span className="inline-block">
+              <FiMoon className="text-xl text-gray-800 dark:hidden" />
+              <FiSun className="text-xl text-yellow-400 hidden dark:inline" />
+            </span>
           </button>
         </div>
 

@@ -37,13 +37,13 @@ export default function AdSlot({ provider, placement }: Props) {
           // remove faulty script
           try { script.remove() } catch (e) {}
           // log minimal info for debugging
-          // eslint-disable-next-line no-console
+           
           console.warn('AdSlot: provider script failed to load or execute', err)
         })
         document.head.appendChild(script)
       } catch (e) {
         // swallow to avoid breaking the host app
-        // eslint-disable-next-line no-console
+         
         console.warn('AdSlot: error injecting provider script', e)
       }
     })

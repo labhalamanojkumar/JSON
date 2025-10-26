@@ -18,14 +18,26 @@ async function parseMysqlUrl(url) {
   // simple parser for mysql://user:pass@host:port/database?params
   try {
     const u = new URL(url)
-    return {
+    const cfg = {
       host: u.hostname,
       port: u.port ? parseInt(u.port, 10) : 3306,
       user: decodeURIComponent(u.username || ''),
       password: decodeURIComponent(u.password || ''),
       database: u.pathname ? u.pathname.replace(/^\//, '') : undefined,
-      params: u.searchParams
+      ssl: {}
     }
+
+    const sslMode = u.searchParams.get('ssl-mode') || u.searchParams.get('sslmode')
+    if (sslMode === 'REQUIRED' || sslMode === 'VERIFY_CA' || sslMode === 'VERIFY_IDENTITY') {
+      cfg.ssl.rejectUnauthorized = sslMode !== 'REQUIRED'
+    }
+
+    // Allow invalid certs
+    if (u.searchParams.get('tlsAllowInvalidCertificates') === 'true') {
+      cfg.ssl.rejectUnauthorized = false
+    }
+
+    return cfg
   } catch (e) {
     throw new Error('Invalid MYSQL_URL or MYSQL_URI')
   }
@@ -51,7 +63,7 @@ async function main() {
   console.log('Parsing MySQL connection...')
   const cfg = await parseMysqlUrl(mysqlUrl)
   console.log('Connecting to MySQL...', cfg.host, cfg.port, cfg.database)
-  const sql = await mysql.createConnection({ host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database })
+  const sql = await mysql.createConnection(cfg)
 
   try {
     const collections = await mdb.listCollections().toArray()

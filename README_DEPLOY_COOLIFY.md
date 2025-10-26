@@ -37,6 +37,11 @@ If you see build errors like "exit code: 240":
 - **Verify** all required environment variables are set
 - **Check** Coolify logs for specific error messages
 
+If you see MongoDB TLS certificate errors during build:
+- **Fixed**: The app now handles build-time MongoDB connections gracefully
+- **No action needed**: The latest code includes automatic build-time detection
+- **Redeploy** with the updated code from the repository
+
 ## Quick Fix for Current Deployment
 
 If you're seeing the build error, follow these steps in Coolify:

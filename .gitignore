@@ -16,3 +16,6 @@ next-env.d.ts
 
 # local dev helper
 .dev_pid
+
+# generated admin token (created when GENERATE_ADMIN_TOKEN=1)
+.generated_admin_token

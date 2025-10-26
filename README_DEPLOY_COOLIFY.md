@@ -37,19 +37,19 @@ If you see build errors like "exit code: 240":
 - **Verify** all required environment variables are set
 - **Check** Coolify logs for specific error messages
 
-## Alternative: Manual Docker Build
+## Quick Fix for Current Deployment
 
-If Coolify continues to have issues, you can build and push the image manually:
+If you're seeing the build error, follow these steps in Coolify:
 
-```bash
-# Build the image
-docker build -t jsonformatterpro .
+1. **Go to your Coolify project settings**
+2. **Change Build Method**: Ensure it's set to "Dockerfile" (not Nixpacks)
+3. **Remove Build Commands**: Delete any manual build commands like `npm ci --legacy-peer-deps && npm run build`
+4. **Environment Variables**: Make sure these are set:
+   - `MONGODB_URI` (your database connection)
+   - `ADMIN_TOKEN` (random secure string)
+   - `SUPERADMIN_USER=Superadmin`
+   - `SUPERADMIN_PASS` (secure password)
+   - `NODE_ENV=production`
+5. **Redeploy**: Trigger a new deployment
 
-# Tag for your registry
-docker tag jsonformatterpro your-registry/jsonformatterpro:latest
-
-# Push to registry
-docker push your-registry/jsonformatterpro:latest
-```
-
-Then deploy the pre-built image in Coolify.
+The Dockerfile will handle the entire build process automatically.

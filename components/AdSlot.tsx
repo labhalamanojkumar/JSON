@@ -19,14 +19,33 @@ export default function AdSlot({ provider, placement }: Props) {
     // run any script tags inside the snippet
     const scripts = Array.from(container.current.querySelectorAll('script'))
     scripts.forEach((old) => {
-      const script = document.createElement('script')
-      if (old.src) {
-        script.src = old.src
-        script.async = old.async
-      } else {
-        script.textContent = old.textContent
+      try {
+        const script = document.createElement('script')
+        if (old.src) {
+          script.src = old.src
+          script.async = old.async
+          // propagate other attributes safely
+          Array.from(old.attributes || []).forEach(attr => {
+            if (attr.name !== 'src' && attr.name !== 'async') script.setAttribute(attr.name, attr.value)
+          })
+        } else {
+          // inline script: copy text
+          script.textContent = old.textContent
+        }
+        // safe append with error handler so a provider script can't break the app
+        script.addEventListener('error', (err) => {
+          // remove faulty script
+          try { script.remove() } catch (e) {}
+          // log minimal info for debugging
+          // eslint-disable-next-line no-console
+          console.warn('AdSlot: provider script failed to load or execute', err)
+        })
+        document.head.appendChild(script)
+      } catch (e) {
+        // swallow to avoid breaking the host app
+        // eslint-disable-next-line no-console
+        console.warn('AdSlot: error injecting provider script', e)
       }
-      document.head.appendChild(script)
     })
   }, [provider])
 

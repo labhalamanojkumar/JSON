@@ -26,8 +26,16 @@ RUN npm ci --omit=dev --legacy-peer-deps
 
 EXPOSE 3000
 
-## Create non-root user for runtime
-RUN addgroup --system app && adduser --system --ingroup app app || true
+## Install minimal utilities (curl for healthcheck) and ensure proper permissions
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
+
+## Create non-root user for runtime and ensure /app is writable
+RUN addgroup --system app \
+	&& adduser --system --ingroup app app || true \
+	&& chown -R app:app /app
+
 USER app
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

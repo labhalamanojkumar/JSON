@@ -22,7 +22,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 
 # Install production dependencies
-RUN npm ci --omit=dev --legacy-peer-deps
+RUN if [ -f package-lock.json ]; then \
+    npm ci --omit=dev --legacy-peer-deps; \
+  else \
+    npm install --omit=dev --legacy-peer-deps; \
+  fi
 
 EXPOSE 3000
 

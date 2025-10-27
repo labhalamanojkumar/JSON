@@ -63,6 +63,7 @@ export default function Home() {
         <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
             Free Online JSON Formatter & Validator
+            <meta name="monetag" content="f5698bcc36a6466bb735717bce4e6275">
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
             Professional JSON formatting, validation, and conversion tool. Format, beautify, minify, and validate JSON with real-time error detection. Convert JSON to CSV, XML, YAML and more.

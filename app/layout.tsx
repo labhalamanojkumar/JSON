@@ -87,7 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" />
-        {monetagMeta ? <meta name="monetag" content={monetagMeta} /> : null}
+        {monetagMeta ? <meta name="monetag" content="f5698bcc36a6466bb735717bce4e6275" /> : null}
         <link rel="canonical" href="https://jsonformatter.pro" />
       </head>
       <body className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
